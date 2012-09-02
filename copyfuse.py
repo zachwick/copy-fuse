@@ -26,7 +26,7 @@ class CopyAPI:
         if 'auth_token' not in response:
             raise FuseOSError(EPERM)
         else:
-            self.auth_token = response['auth_token'].encode('ascii','ignore')        
+            self.auth_token = response['auth_token'].encode('ascii','ignore')
 
     def copyrequest(self, uri, data, return_json=True):
         headers = {'X-Client-Type': 'api', 'X-Api-Version': '0.1.18', "Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
@@ -34,7 +34,7 @@ class CopyAPI:
             headers['X-Authorization'] = self.auth_token
         self.httpconn.request("POST", uri, urllib.urlencode({'data': json.dumps(data)}), headers)
         response = self.httpconn.getresponse()
-        
+
         if return_json == True:
             return json.loads(response.read(), 'latin-1')
         else:
@@ -50,17 +50,17 @@ class CopyAPI:
         data = {'path': path, 'max_items': 1000000}
         response = self.copyrequest('/list_objects', data)
         if 'children' not in response:
-            raise FuseOSError(EIO)            
-        
+            raise FuseOSError(EIO)
+
         # build tree
         self.tree_children[path] = {}
         for child in response['children']:
             name = str(os.path.basename(child['path']))
-            ctime = time.mktime(time.strptime(child['created_time'], "%Y-%m-%d %H:%M:%S"))
+            ctime = int(child['created_time'])
             if child['modified_time'] == None:
                 mtime = ctime
             else:
-                mtime = time.mktime(time.strptime(child['modified_time'], "%Y-%m-%d %H:%M:%S"))
+                mtime = int(child['modified_time'])
             self.tree_children[path][name] = {'name': name, 'type': child['type'], 'size': child['size'], 'ctime': ctime, 'mtime': mtime}
 
         # update expiration time
@@ -68,7 +68,7 @@ class CopyAPI:
 
         return self.tree_children[path]
 
-class CopyFUSE(LoggingMixIn, Operations):    
+class CopyFUSE(LoggingMixIn, Operations):
     def __init__(self, username, password):
         self.rwlock = Lock()
         self.copy_api = CopyAPI(username, password)
@@ -83,7 +83,7 @@ class CopyFUSE(LoggingMixIn, Operations):
         else:
             name = str(os.path.basename(path))
             objects = self.copy_api.list_objects(os.path.dirname(path))
-            
+
             if name not in objects:
                 raise FuseOSError(ENOENT)
             elif objects[name]['type'] == 'file':
@@ -94,11 +94,11 @@ class CopyFUSE(LoggingMixIn, Operations):
             st['st_ctime'] = st['st_atime'] = objects[name]['ctime']
             st['st_mtime'] = objects[name]['mtime']
         return st
-        
+
     def read(self, path, size, offset, fh):
         raw = self.copy_api.copyrequest("/download_object", {'path': path}, False)
         return raw[offset:size]
-            
+
     def readdir(self, path, fh):
         objects = self.copy_api.list_objects(path)
 
