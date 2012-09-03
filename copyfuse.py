@@ -13,7 +13,7 @@ import tempfile
 import time
 import json
 import hashlib
-import httplib, urllib
+import urllib3
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn, fuse_get_context
 
@@ -24,7 +24,7 @@ class CopyAPI:
         self.auth_token = ''
         self.tree_children = {}
         self.tree_expire = {}
-        self.httpconn = httplib.HTTPSConnection("api.copy.com")
+        self.httpconn = urllib3.connection_from_url("https://api.copy.com", block=True, maxsize=1)
         data = {'username': username, 'password' : password}
         response = self.copyrequest('/auth_user', data)
         if 'auth_token' not in response:
@@ -36,13 +36,12 @@ class CopyAPI:
         headers = self.headers
         if self.auth_token != '':
             headers['X-Authorization'] = self.auth_token
-        self.httpconn.request("POST", uri, urllib.urlencode({'data': json.dumps(data)}), headers)
-        response = self.httpconn.getresponse()
+        response = self.httpconn.request_encode_body("POST", uri, {'data': json.dumps(data)}, headers, False)
 
         if return_json == True:
-            return json.loads(response.read(), 'latin-1')
+            return json.loads(response.data, 'latin-1')
         else:
-            return response.read()
+            return response.data
 
     def part_request(self, method, parts, data=None):
         headers = self.headers
@@ -66,12 +65,11 @@ class CopyAPI:
         # print headers
 
         if method == 'has_parts':
-            self.httpconn.request("POST", "/" + method, urllib.urlencode({'data': json.dumps(data)}), headers)
+            response = self.httpconn.request_encode_body("POST", "/" + method, {'data': json.dumps(data)}, headers, False)
         else:
-            self.httpconn.request("POST", "/" + method, payload, headers)
+            response = self.httpconn.urlopen("POST", "/" + method, payload, headers)
 
-        response = self.httpconn.getresponse()
-        return json.loads(response.read(), 'latin-1')
+        return json.loads(response.data, 'latin-1')
 
     def list_objects(self, path, ttl=10):
         # check cache
@@ -80,6 +78,7 @@ class CopyAPI:
                 return self.tree_children[path]
 
         # obtain data from copy
+        print "listing objects from cloud for path: " + path
         data = {'path': path, 'max_items': 1000000}
         response = self.copyrequest('/list_objects', data)
         if 'children' not in response:
@@ -101,15 +100,17 @@ class CopyAPI:
 
         return self.tree_children[path]
 
-    def partify(self, data):
+    def partify(self, f, size):
         parts = {}
 
-        if len(data) == 0:
-            parts[0] = {'fingerprint': 'd41d8cd98f00b204e9800998ecf8427eda39a3ee5e6b4b0d3255bfef95601890afd80709', 'offset': 0, 'size': 0, 'data': ''}
+        offset = 0
+        while offset < size:
+            print "offset: " + str(offset)
 
-        for byte_counter in xrange(0, len(data), 1048576):
-            part_data = data[byte_counter:1048576]
-            parts[len(parts)] = {'fingerprint': hashlib.md5(part_data).hexdigest() + hashlib.sha1(part_data).hexdigest(), 'offset': byte_counter, 'size': len(part_data), 'data': part_data}
+            # obtain the part data
+            part_data = f.read(1048576)
+            parts[len(parts)] = {'fingerprint': hashlib.md5(part_data).hexdigest() + hashlib.sha1(part_data).hexdigest(), 'offset': offset, 'size': len(part_data), 'data': part_data}
+            offset += len(part_data)
 
         return parts
 
@@ -118,6 +119,11 @@ class CopyFUSE(LoggingMixIn, Operations):
         self.rwlock = Lock()
         self.copy_api = CopyAPI(username, password)
         self.files = {}
+
+    def file_rename(self, old, new):
+        if old in self.files:
+            self.files[new] = self.files[old]
+            del self.files[old]
 
     def file_get(self, path, download=True):
         if path in self.files:
@@ -157,9 +163,13 @@ class CopyFUSE(LoggingMixIn, Operations):
         print 'uploading: ' + path
 
         f = fileObject['object']
+
+        # obtain the size of the file
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
         f.seek(0)
-        raw = f.read()
-        parts = self.copy_api.partify(raw)
+
+        parts = self.copy_api.partify(f, size)
 
         # obtain list of parts that need to be sent
         response = self.copy_api.part_request('has_parts', parts)
@@ -189,7 +199,7 @@ class CopyFUSE(LoggingMixIn, Operations):
 
         # send file metadata
         params = {'meta': {}}
-        params['meta'][0] = {'action': 'create', 'object_type': 'file', 'path': path, 'size': len(raw), 'parts': parts}
+        params['meta'][0] = {'action': 'create', 'object_type': 'file', 'path': path, 'size': size, 'parts': parts}
         response = self.copy_api.copyrequest('/update_objects', params, True)
 
         # trap any errors
@@ -198,12 +208,18 @@ class CopyFUSE(LoggingMixIn, Operations):
 
         fileObject['modified'] = False
 
+    def chmod(self, path, mode):
+        return 0
+
+    def chown(self, path, uid, gid):
+        return 0
+
     def statfs(self, path):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
 
     def getattr(self, path, fh=None):
         if path == '/':
-            st = dict(st_mode=(S_IFDIR | 0555), st_nlink=2)
+            st = dict(st_mode=(S_IFDIR | 0755), st_nlink=2)
             st['st_ctime'] = st['st_atime'] = st['st_mtime'] = time.time()
         else:
             name = str(os.path.basename(path))
@@ -219,6 +235,16 @@ class CopyFUSE(LoggingMixIn, Operations):
             st['st_ctime'] = st['st_atime'] = objects[name]['ctime']
             st['st_mtime'] = objects[name]['mtime']
         return st
+
+    def mkdir(self, path, mode):
+        # send file metadata
+        params = {'meta': {}}
+        params['meta'][0] = {'action': 'create', 'object_type': 'dir', 'path': path}
+        response = self.copy_api.copyrequest('/update_objects', params, True)
+
+        # trap any errors
+        if response['result'] != 'success':
+            raise FuseOSError(EIO)
 
     def open(self, path, flags):
         self.file_get(path)
@@ -247,7 +273,16 @@ class CopyFUSE(LoggingMixIn, Operations):
             listing.append(child)
         return listing
 
+    def rename(self, old, new):
+        self.file_rename(old, new)
+        params = {'meta': {}}
+        params['meta'][0] = {'action': 'rename', 'path': old, 'new_path': new}
+        self.copy_api.copyrequest("/update_objects", params, False)
+
     def create(self, path, mode):
+        name = os.path.basename(path)
+        if os.path.dirname(path) in self.copy_api.tree_children:
+            self.copy_api.tree_children[os.path.dirname(path)][name] = {'name': name, 'type': 'file', 'size': 0, 'ctime': time.time(), 'mtime': time.time()}
         self.file_get(path, download=False)
         self.file_upload(path)
         return 0
@@ -257,6 +292,11 @@ class CopyFUSE(LoggingMixIn, Operations):
         f.truncate(length)
 
     def unlink(self, path):
+        params = {'meta': {}}
+        params['meta'][0] = {'action': 'remove', 'path': path}
+        self.copy_api.copyrequest("/update_objects", params, False)
+
+    def rmdir(self, path):
         params = {'meta': {}}
         params['meta'][0] = {'action': 'remove', 'path': path}
         self.copy_api.copyrequest("/update_objects", params, False)
@@ -275,7 +315,6 @@ class CopyFUSE(LoggingMixIn, Operations):
     listxattr = None
     opendir = None
     releasedir = None
-    # release = None
 
 if __name__ == "__main__":
     if len(argv) != 4:
