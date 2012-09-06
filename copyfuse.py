@@ -103,14 +103,19 @@ class CopyAPI:
     def partify(self, f, size):
         parts = {}
 
+        part_num = 0
         offset = 0
-        while offset < size:
-            print "offset: " + str(offset)
-
+        while f.tell() < size:
             # obtain the part data
+            offset = f.tell()
             part_data = f.read(1048576)
-            parts[len(parts)] = {'fingerprint': hashlib.md5(part_data).hexdigest() + hashlib.sha1(part_data).hexdigest(), 'offset': offset, 'size': len(part_data), 'data': part_data}
-            offset += len(part_data)
+            parts[part_num] = {'fingerprint': hashlib.md5(part_data).hexdigest() + hashlib.sha1(part_data).hexdigest(), 'offset': offset, 'size': len(part_data), 'data': part_data}
+            offset = f.tell()
+            part_num += 1
+
+        if size != offset:
+            print str(size) + " != " + str(offset)
+            raise FuseOSError(EIO)
 
         return parts
 
