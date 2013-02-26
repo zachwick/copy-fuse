@@ -78,7 +78,7 @@ class CopyAPI:
                 return self.tree_children[path]
 
         # obtain data from copy
-        print "listing objects from cloud for path: " + path
+        # print "listing objects from cloud for path: " + path
         data = {'path': path, 'max_items': 1000000}
         response = self.copyrequest('/list_objects', data)
         if 'children' not in response:
@@ -114,7 +114,7 @@ class CopyAPI:
             part_num += 1
 
         if size != offset:
-            print str(size) + " != " + str(offset)
+            # print str(size) + " != " + str(offset)
             raise FuseOSError(EIO)
 
         return parts
@@ -143,7 +143,7 @@ class CopyFUSE(LoggingMixIn, Operations):
         f.write(raw)
         self.files[path] = {'object': f, 'modified': False}
 
-        print "opening: " + path
+        # print "opening: " + path
 
         return self.files[path]
 
@@ -152,7 +152,7 @@ class CopyFUSE(LoggingMixIn, Operations):
             if self.files[path]['modified'] == True:
                 self.file_upload(path)
 
-            print "closing: " + path
+            # print "closing: " + path
 
             self.files[path]['object'].close()
             del self.files[path]
@@ -165,7 +165,7 @@ class CopyFUSE(LoggingMixIn, Operations):
         if fileObject['modified'] == False:
             return True
 
-        print 'uploading: ' + path
+        # print 'uploading: ' + path
 
         f = fileObject['object']
 
@@ -223,7 +223,7 @@ class CopyFUSE(LoggingMixIn, Operations):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
 
     def getattr(self, path, fh=None):
-        print "getattr: " + path
+        # print "getattr: " + path
         if path == '/':
             st = dict(st_mode=(S_IFDIR | 0755), st_nlink=2)
             st['st_ctime'] = st['st_atime'] = st['st_mtime'] = time.time()
@@ -243,7 +243,7 @@ class CopyFUSE(LoggingMixIn, Operations):
         return st
 
     def mkdir(self, path, mode):
-        print "mkdir: " + path
+        # print "mkdir: " + path
         # send file metadata
         params = {'meta': {}}
         params['meta'][0] = {'action': 'create', 'object_type': 'dir', 'path': path}
@@ -254,24 +254,24 @@ class CopyFUSE(LoggingMixIn, Operations):
             raise FuseOSError(EIO)
 
     def open(self, path, flags):
-        print "open: " + path
+        # print "open: " + path
         self.file_get(path)
         return 0
 
     def flush(self, path, fh):
-        print "flush: " + path
+        # print "flush: " + path
         if path in self.files:
             if self.files[path]['modified'] == True:
                 self.file_upload(path)
 
     def fsync(self, path, datasync, fh):
-        print "fsync: " + path
+        # print "fsync: " + path
         if path in self.files:
             if self.files[path]['modified'] == True:
                 self.file_upload(path)
 
     def release(self, path, fh):
-        print "release: " + path
+        # print "release: " + path
         self.file_close(path)
 
     def read(self, path, size, offset, fh):
@@ -280,7 +280,7 @@ class CopyFUSE(LoggingMixIn, Operations):
         return f.read(size)
 
     def readdir(self, path, fh):
-        print "readdir: " + path
+        # print "readdir: " + path
         objects = self.copy_api.list_objects(path)
 
         listing = ['.', '..']
@@ -289,14 +289,14 @@ class CopyFUSE(LoggingMixIn, Operations):
         return listing
 
     def rename(self, old, new):
-        print "renaming: " + old + " to " + new
+        # print "renaming: " + old + " to " + new
         self.file_rename(old, new)
         params = {'meta': {}}
         params['meta'][0] = {'action': 'rename', 'path': old, 'new_path': new}
         self.copy_api.copyrequest("/update_objects", params, False)
 
     def create(self, path, mode):
-        print "create: " + path
+        # print "create: " + path
         name = os.path.basename(path)
         if os.path.dirname(path) in self.copy_api.tree_children:
             self.copy_api.tree_children[os.path.dirname(path)][name] = {'name': name, 'type': 'file', 'size': 0, 'ctime': time.time(), 'mtime': time.time()}
@@ -305,12 +305,12 @@ class CopyFUSE(LoggingMixIn, Operations):
         return 0
 
     def truncate(self, path, length, fh=None):
-        print "truncate: " + path
+        # print "truncate: " + path
         f = self.file_get(path)['object']
         f.truncate(length)
 
     def unlink(self, path):
-        print "unlink: " + path
+        # print "unlink: " + path
         params = {'meta': {}}
         params['meta'][0] = {'action': 'remove', 'path': path}
         self.copy_api.copyrequest("/update_objects", params, False)
