@@ -339,4 +339,4 @@ if __name__ == "__main__":
     if len(argv) != 4:
         print 'usage: %s <username> <password> <mountpoint>' % argv[0]
         exit(1)
-    fuse = FUSE(CopyFUSE(argv[1], argv[2]), argv[3], foreground=True)
+    fuse = FUSE(CopyFUSE(argv[1], argv[2]), argv[3], foreground=False)
