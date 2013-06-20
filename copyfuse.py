@@ -86,7 +86,7 @@ class CopyAPI:
         # build tree
         self.tree_children[path] = {}
         for child in response['children']:
-            name = os.path.basename(child['path'])
+            name = str(os.path.basename(child['path']))
             ctime = int(child['created_time'])
             if child['modified_time'] == None:
                 mtime = ctime
@@ -227,7 +227,7 @@ class CopyFUSE(LoggingMixIn, Operations):
             st = dict(st_mode=(S_IFDIR | 0755), st_nlink=2)
             st['st_ctime'] = st['st_atime'] = st['st_mtime'] = time.time()
         else:
-            name = os.path.basename(path)
+            name = str(os.path.basename(path))
             objects = self.copy_api.list_objects(os.path.dirname(path))
 
             if name not in objects:
