@@ -18,13 +18,13 @@ import urllib3
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn, fuse_get_context
 
 class CopyAPI:
-    headers = {'X-Client-Type': 'api', 'X-Api-Version': '0.1.18', "Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
+    headers = {'X-Client-Type': 'api', 'X-Api-Version': '1', "Content-type": "application/x-www-form-urlencoded", "Accept": "text/plain"}
 
     def __init__(self, username, password):
         self.auth_token = ''
         self.tree_children = {}
         self.tree_expire = {}
-        self.httpconn = urllib3.connection_from_url("https://api.copy.com", block=True, maxsize=1)
+        self.httpconn = urllib3.connection_from_url("https://apiweb.copy.com", block=True, maxsize=1)
         data = {'username': username, 'password' : password}
         response = self.copyrequest('/auth_user', data)
         if 'auth_token' not in response:
@@ -37,7 +37,6 @@ class CopyAPI:
         if self.auth_token != '':
             headers['X-Authorization'] = self.auth_token
         response = self.httpconn.request_encode_body("POST", uri, {'data': json.dumps(data)}, headers, False)
-
         if return_json == True:
             return json.loads(response.data, 'latin-1')
         else:
