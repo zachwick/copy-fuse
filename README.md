@@ -35,10 +35,25 @@
 
 ## Usage How To
 
-1. Clone the copy-fuse repo
-2. 'cd' to the copy-fuse repo
-3. ensure that copyfuse.py is executable
-4. execute copyfuse.py
+Clone the copy-fuse repo
+
+	git clone https://github.com/copy-app/copy-fuse
+
+'cd' to the copy-fuse repo
+
+   	cd copy-fuse
+
+ensure that copyfuse.py is executable
+
+   	sudo chmod +x copyfuse.py
+
+execute copyfuse.py
+
+   	./copyfuse.py user@email.com password /path/to/mount/point &
+
+to unmount your Copy account
+
+	fusermount -u /path/to/mount/point
 
 ## Troubleshooting
 
