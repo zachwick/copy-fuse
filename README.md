@@ -7,28 +7,34 @@
 	<tr>
 	    <td>General Name</td>
 	    <td>ArchLinux/CopyBoxLinux Package</td>
+		<td>Raspbian</td>
 	</tr>
     </thead>
     <tbody>
 	<tr>
 	    <td>Python 2</td>
 	    <td>python2</td>
+		<td>python2.7</td>
 	</tr>
 	<tr>
 	    <td>Fuse</td>
 	    <td>fuse</td>
+		<td>fuse</td>
 	</tr>
 	<tr>
 	    <td>Python Fuse Bindings</td>
 	    <td>python2-fuse</td>
+		<td>python-fuse</td>
 	</tr>
 	<tr>
 	    <td>Python URLLib3</td>
 	    <td>python2-urllib3</td>
+		<td>python-urllib3</td>
 	</tr>
 	<tr>
 	    <td>Python Setuptools utility</td>
 	    <td>python2-distribute</td>
+		<td>python-setuptools</td>
 	</tr>
     </tbody>
 </table>
