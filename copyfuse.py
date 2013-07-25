@@ -3,10 +3,9 @@
 from __future__ import with_statement
 
 from errno import EACCES, ENOENT, EIO, EPERM
-from sys import argv, exit
 from threading import Lock
 from stat import S_IFDIR, S_IFREG
-from sys import argv, exit
+from sys import argv, exit, stderr
 
 import os
 import argparse
@@ -120,9 +119,10 @@ class CopyAPI:
         return parts
 
 class CopyFUSE(LoggingMixIn, Operations):
-    def __init__(self, username, password):
+    def __init__(self, username, password, logfile=None):
         self.rwlock = Lock()
         self.copy_api = CopyAPI(username, password)
+        self.logfile = logfile
         self.files = {}
 
     def file_rename(self, old, new):
@@ -371,7 +371,12 @@ def main():
     fuse_args = args.__dict__.copy()
     fuse_args.update(options)
     
-    fuse = FUSE(CopyFUSE(username, password), mount_point, **fuse_args)
+    logfile = None
+    if fuse_args.get('debug', False) == True:
+        # send to stderr same as where fuse lib sends debug messages
+        logfile = stderr
+    
+    fuse = FUSE(CopyFUSE(username, password, logfile=logfile), mount_point, **fuse_args)
 
 
 if __name__ == "__main__":
