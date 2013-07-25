@@ -55,7 +55,7 @@ ensure that copyfuse.py is executable
 
 execute copyfuse.py
 
-   	./copyfuse.py user@email.com password /path/to/mount/point &
+   	./copyfuse.py user@email.com password /path/to/mount/point
 
 to unmount your Copy account
 
