@@ -3,12 +3,12 @@
 from __future__ import with_statement
 
 from errno import EACCES, ENOENT, EIO, EPERM
-from sys import argv, exit
 from threading import Lock
 from stat import S_IFDIR, S_IFREG
-from sys import argv, exit
+from sys import argv, exit, stderr
 
 import os
+import argparse
 import tempfile
 import time
 import json
@@ -119,9 +119,10 @@ class CopyAPI:
         return parts
 
 class CopyFUSE(LoggingMixIn, Operations):
-    def __init__(self, username, password):
+    def __init__(self, username, password, logfile=None):
         self.rwlock = Lock()
         self.copy_api = CopyAPI(username, password)
+        self.logfile = logfile
         self.files = {}
 
     def file_rename(self, old, new):
@@ -334,8 +335,49 @@ class CopyFUSE(LoggingMixIn, Operations):
     opendir = None
     releasedir = None
 
+def main():
+    parser = argparse.ArgumentParser(
+        description='Fuse filesystem for Copy.com')
+    
+    parser.add_argument(
+        '-d', '--debug', default=False, action='store_true',
+        help='turn on debug output (implies -f)')
+    parser.add_argument(
+        '-s', '--nothreads', default=False, action='store_true',
+        help='disallow multi-threaded operation / run with only one thread')
+    parser.add_argument(
+        '-f', '--foreground', default=False, action='store_true',
+        help='run in foreground')
+    parser.add_argument(
+        '-o', '--options', help='add extra fuse options (see "man fuse")')
+    
+    parser.add_argument(
+        'username', metavar='EMAIL', help='username/email')
+    parser.add_argument(
+        'password', metavar='PASS', help='password')
+    parser.add_argument(
+        'mount_point', metavar='MNTDIR', help='directory to mount filesystem at')
+    
+    args = parser.parse_args(argv[1:])
+    
+    username = args.__dict__.pop('username')
+    password = args.__dict__.pop('password')
+    mount_point = args.__dict__.pop('mount_point')
+    
+    # parse options
+    options_str = args.__dict__.pop('options')
+    options = dict([(kv.split('=', 1)+[True])[:2] for kv in (options_str and options_str.split(',')) or []])
+    
+    fuse_args = args.__dict__.copy()
+    fuse_args.update(options)
+    
+    logfile = None
+    if fuse_args.get('debug', False) == True:
+        # send to stderr same as where fuse lib sends debug messages
+        logfile = stderr
+    
+    fuse = FUSE(CopyFUSE(username, password, logfile=logfile), mount_point, **fuse_args)
+
+
 if __name__ == "__main__":
-    if len(argv) != 4:
-        print 'usage: %s <username> <password> <mountpoint>' % argv[0]
-        exit(1)
-    fuse = FUSE(CopyFUSE(argv[1], argv[2]), argv[3], foreground=True)
+    main()
