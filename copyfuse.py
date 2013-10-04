@@ -24,7 +24,7 @@ class CopyAPI:
         self.auth_token = ''
         self.tree_children = {}
         self.tree_expire = {}
-        self.httpconn = urllib3.connection_from_url("https://apiweb.copy.com", block=True, maxsize=1)
+        self.httpconn = urllib3.connection_from_url("https://next-api.copy.com", block=True, maxsize=1)
         data = {'username': username, 'password' : password}
         response = self.copyrequest('/auth_user', data)
         if 'auth_token' not in response:
